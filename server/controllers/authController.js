@@ -1,46 +1,108 @@
-import User from "../models/user.model.js";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { expressjwt } from "express-jwt";
-import config from "./../../config/config.js";
-const signin = async (req, res) => {
-  try {
-    let user = await User.findOne({ email: req.body.email });
-    if (!user) return res.status(401).json({ error: "User not found" });
-    if (!user.authenticate(req.body.password)) {
-      return res.status(401).send({ error: "Email and password don't match." });
-    }
-    const token = jwt.sign({ _id: user._id }, config.jwtSecret);
-    res.cookie("t", token, { expire: new Date() + 9999 });
-    return res.json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-      },
-    });
-  } catch (err) {
-    return res.status(401).json({ error: "Could not sign in" });
-  }
-};
-const signout = (req, res) => {
-  res.clearCookie("t");
-  return res.status(200).json({
-    message: "signed out",
+import User from "../models/User.js";
+
+// Generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET || "your_secret_key_here", {
+    expiresIn: "30d",
   });
 };
-const requireSignin = expressjwt({
-  secret: config.jwtSecret,
-  algorithms: ["HS256"],
-  userProperty: "auth",
-});
-const hasAuthorization = (req, res, next) => {
-  const authorized = req.profile && req.auth && req.profile._id == req.auth._id;
-  if (!authorized) {
-    return res.status(403).json({
-      error: "User is not authorized",
+
+// @desc    Register a new user
+// @route   POST /api/auth/register
+// @access  Public
+export const register = async (req, res) => {
+  try {
+    const { username, email, password, role } = req.body;
+
+    // Validate input
+    if (!username || !email || !password) {
+      return res.status(400).json({ 
+        message: "Please provide username, email, and password" 
+      });
+    }
+
+    // Check if user already exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user
+    const user = await User.create({
+      username,
+      email,
+      password: hashedPassword,
+      role: role || "user",
     });
+
+    if (user) {
+      res.status(201).json({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(400).json({ message: "Invalid user data" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
-  next();
 };
-export default { signin, signout, requireSignin, hasAuthorization };
+
+// @desc    Authenticate user & get token
+// @route   POST /api/auth/login
+// @access  Public
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ 
+        message: "Please provide email and password" 
+      });
+    }
+
+    // Check for user
+    const user = await User.findOne({ email });
+
+    if (user && (await bcrypt.compare(password, user.password))) {
+      res.json({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    } else {
+      res.status(401).json({ message: "Invalid email or password" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get user profile
+// @route   GET /api/auth/profile
+// @access  Private
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    
+    if (user) {
+      res.json(user);
+    } else {
+      res.status(404).json({ message: "User not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
