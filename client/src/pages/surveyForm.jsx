@@ -10,50 +10,50 @@ const SurveyForm = () => {
     none: false,
   });
 
-    const [numbers, setNumbers] = useState({
+  const [numbers, setNumbers] = useState({
+    brand1: "",
+    brand2: "",
+    brand3: "",
+    brand4: "",
+    age: "",
+    country: "",
+  });
+
+  const handleBrandChange = (e) => {
+    const { name, checked } = e.target;
+
+    if (name === "none") {
+      // If "None of the above" is checked, clear all brands + their counts
+      setBrands({
+        brand1: false,
+        brand2: false,
+        brand3: false,
+        brand4: false,
+        none: checked,
+      });
+      setNumbers((prev) => ({
+        ...prev,
         brand1: "",
         brand2: "",
         brand3: "",
         brand4: "",
-        age: "",
-        country: "",
-    });
-
-const handleBrandChange = (e) => {
-  const { name, checked } = e.target;
-
-  if (name === "none") {
-    // If "None of the above" is checked, clear all brands + their counts
-    setBrands({
-      brand1: false,
-      brand2: false,
-      brand3: false,
-      brand4: false,
-      none: checked,
-    });
-    setNumbers((prev) => ({
-      ...prev,
-      brand1: "",
-      brand2: "",
-      brand3: "",
-      brand4: "",
-    }));
-  } else {
-    setBrands((prev) => ({
-      ...prev,
-      [name]: checked,
-      none: false, // uncheck "none" if any brand is selected
-    }));
-
-    // If a brand is turned OFF, clear its count
-    if (!checked) {
-      setNumbers((prev) => ({
-        ...prev,
-        [name]: "",
       }));
+    } else {
+      setBrands((prev) => ({
+        ...prev,
+        [name]: checked,
+        none: false, // uncheck "none" if any brand is selected
+      }));
+
+      // If a brand is turned OFF, clear its count
+      if (!checked) {
+        setNumbers((prev) => ({
+          ...prev,
+          [name]: "",
+        }));
+      }
     }
-  }
-};
+  };
 
 
   const handleNumChange = (e) => {
@@ -64,10 +64,46 @@ const handleBrandChange = (e) => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Survey submitted:", { brands, numbers });
-    alert("Thank you for completing the survey!");
+
+    const payload = {
+      brands,
+      numbers,
+      // add any extra fields your controller expects
+    };
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(`${API_BASE_URL}/api/responses`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(
+          (data && (data.message || data.error)) ||
+          `Failed to submit survey (status ${res.status})`
+        );
+        return;
+      }
+
+      const saved = await res.json();
+      console.log("Saved survey response:", saved);
+      alert("Thank you for completing the survey!");
+    } catch (err) {
+      console.error(err);
+      alert("There was a problem submitting your survey.");
+    }
   };
 
   return (
@@ -146,39 +182,39 @@ const handleBrandChange = (e) => {
             </div>
           </div>
 
-                  {/* Question 2 */}
-                  <div className="survey-section">
-                      <p className="survey-question">
-                          How many pairs of shoes did you buy for each brand?
-                      </p>
+          {/* Question 2 */}
+          <div className="survey-section">
+            <p className="survey-question">
+              How many pairs of shoes did you buy for each brand?
+            </p>
 
-                      {/* Render one row per selected brand */}
-                      {["brand1", "brand2", "brand3", "brand4"].map((key) => {
-                          if (!brands[key]) return null; // only show if checkbox is selected
+            {/* Render one row per selected brand */}
+            {["brand1", "brand2", "brand3", "brand4"].map((key) => {
+              if (!brands[key]) return null; // only show if checkbox is selected
 
-                          const label =
-                              key === "brand1"
-                                  ? "Brand 1"
-                                  : key === "brand2"
-                                      ? "Brand 2"
-                                      : key === "brand3"
-                                          ? "Brand 3"
-                                          : "Brand 4";
+              const label =
+                key === "brand1"
+                  ? "Brand 1"
+                  : key === "brand2"
+                    ? "Brand 2"
+                    : key === "brand3"
+                      ? "Brand 3"
+                      : "Brand 4";
 
-                          return (
-                              <div className="survey-field-row" key={key}>
-                                  <label>{label}</label>
-                                  <input
-                                      type="number"
-                                      min="0"
-                                      name={key}
-                                      value={numbers[key]}
-                                      onChange={handleNumChange}
-                                  />
-                              </div>
-                          );
-                      })}
-                  </div>
+              return (
+                <div className="survey-field-row" key={key}>
+                  <label>{label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    name={key}
+                    value={numbers[key]}
+                    onChange={handleNumChange}
+                  />
+                </div>
+              );
+            })}
+          </div>
 
 
           {/* Demographics */}
