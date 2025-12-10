@@ -1,4 +1,4 @@
-import { Survey } from "../models/User.js";
+import Survey from "../models/Survey.js";
 
 // @desc    Get all surveys
 // @route   GET /api/surveys
@@ -18,7 +18,7 @@ export const getAllSurveys = async (req, res) => {
 export const getSurveyById = async (req, res) => {
   try {
     const survey = await Survey.findById(req.params.id);
-    
+
     if (survey) {
       res.json(survey);
     } else {
@@ -34,9 +34,8 @@ export const getSurveyById = async (req, res) => {
 // @access  Private/Admin
 export const createSurvey = async (req, res) => {
   try {
-    const { title, description, questions } = req.body;
+    const { title, description, brandOptions, isActive } = req.body;
 
-    // Validate input
     if (!title) {
       return res.status(400).json({ message: "Survey title is required" });
     }
@@ -44,7 +43,9 @@ export const createSurvey = async (req, res) => {
     const survey = await Survey.create({
       title,
       description,
-      questions,
+      brandOptions,
+      isActive: typeof isActive === "boolean" ? isActive : true,
+      createdBy: req.user?._id, // requires protect + admin middleware
     });
 
     res.status(201).json(survey);
@@ -58,20 +59,21 @@ export const createSurvey = async (req, res) => {
 // @access  Private/Admin
 export const updateSurvey = async (req, res) => {
   try {
-    const { title, description, questions } = req.body;
+    const { title, description, brandOptions, isActive } = req.body;
 
     const survey = await Survey.findById(req.params.id);
 
-    if (survey) {
-      survey.title = title || survey.title;
-      survey.description = description || survey.description;
-      survey.questions = questions || survey.questions;
-
-      const updatedSurvey = await survey.save();
-      res.json(updatedSurvey);
-    } else {
-      res.status(404).json({ message: "Survey not found" });
+    if (!survey) {
+      return res.status(404).json({ message: "Survey not found" });
     }
+
+    if (title !== undefined) survey.title = title;
+    if (description !== undefined) survey.description = description;
+    if (brandOptions !== undefined) survey.brandOptions = brandOptions;
+    if (typeof isActive === "boolean") survey.isActive = isActive;
+
+    const updatedSurvey = await survey.save();
+    res.json(updatedSurvey);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

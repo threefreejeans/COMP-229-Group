@@ -1,4 +1,4 @@
-import { SurveyResponse } from "../models/User.js";
+import SurveyResponse from "../models/SurveyResponse.js";
 
 // @desc    Get all survey responses
 // @route   GET /api/responses
